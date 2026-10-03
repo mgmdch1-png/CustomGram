@@ -68,11 +68,51 @@ public class CustomGramRemindersActivity extends BaseFragment {
         textField.addTextChangedListener(watcher); minutesField.addTextChangedListener(watcher); updatePreview(); fragmentView = scroll; return fragmentView;
     }
 
+    @Override public void onResume() {
+        super.onResume();
+        rebuildActive(getContext());
+    }
+
     private void cycleRepeat() { if (repeatMinutes == 0) repeatMinutes = 60; else if (repeatMinutes == 60) repeatMinutes = 24*60; else repeatMinutes = 0; repeatButton.setText(repeatMinutes == 0 ? "Не повторять" : repeatMinutes == 60 ? "Повторять каждый час" : "Повторять каждый день"); updatePreview(); }
     private void addPreset(Context c, LinearLayout p, String label, int value) { TextView b = pill(c,label); b.setTextSize(13); b.setOnClickListener(v -> { minutesField.setText(String.valueOf(value)); minutesField.setSelection(minutesField.length()); }); p.addView(b,new LinearLayout.LayoutParams(0,dp(40),1f)); }
 
     private void saveReminder() { String body=textField.getText().toString().trim(); if(body.isEmpty())return; int minutes=parseMinutes(); long id=System.currentTimeMillis(); CustomGramReminders.Item item=new CustomGramReminders.Item(id,body,id+minutes*60_000L,repeatMinutes,true); CustomGramReminders.save(item); CustomGramReminderScheduler.schedule(item); previewWhen.setText("Создано • через "+minutesLabel(minutes)); rebuildActive(getContext()); }
-    private void rebuildActive(Context c) { if(activeList==null||c==null)return; activeList.removeAllViews(); List<CustomGramReminders.Item> items=CustomGramReminders.getAll(); if(items.isEmpty()){ TextView e=text(c,"Активных напоминаний пока нет",15,false,Theme.key_windowBackgroundWhiteGrayText); e.setGravity(Gravity.CENTER); activeList.addView(e,LayoutHelper.createLinear(-1,80)); return;} for(CustomGramReminders.Item item:items){ LinearLayout row=card(c); row.setPadding(dp(16),dp(12),dp(12),dp(12)); LinearLayout words=new LinearLayout(c); words.setOrientation(LinearLayout.VERTICAL); TextView a=text(c,item.text,16,true,Theme.key_windowBackgroundWhiteBlackText); words.addView(a); String when=DateFormat.getDateTimeInstance(DateFormat.SHORT,DateFormat.SHORT).format(new Date(item.triggerAt)); TextView b=text(c,when+(item.repeatMinutes>0?" • повтор":""),12,false,Theme.key_windowBackgroundWhiteGrayText); words.addView(b,lp(0,3,0,0)); row.addView(words,new LinearLayout.LayoutParams(0,-2,1f)); TextView del=pill(c,"Удалить"); del.setTextSize(12); del.setTextColor(Theme.getColor(Theme.key_text_RedBold)); del.setOnClickListener(v->{CustomGramReminderScheduler.cancel(item.id);CustomGramReminders.remove(item.id);rebuildActive(c);}); row.addView(del,LayoutHelper.createLinear(82,40)); activeList.addView(row,lp(0,0,0,8)); } }
+    private void rebuildActive(Context c) {
+        if(activeList==null||c==null)return;
+        activeList.removeAllViews();
+        List<CustomGramReminders.Item> items=CustomGramReminders.getAll();
+        if(items.isEmpty()){
+            LinearLayout empty = card(c);
+            empty.setGravity(Gravity.CENTER);
+            empty.setPadding(dp(20), dp(20), dp(20), dp(20));
+            TextView e=text(c,"Активных напоминаний пока нет",15,false,Theme.key_windowBackgroundWhiteGrayText);
+            e.setGravity(Gravity.CENTER);
+            empty.addView(e, LayoutHelper.createLinear(-1, -2));
+            activeList.addView(empty, LayoutHelper.createLinear(-1,-2));
+            return;
+        }
+        for(CustomGramReminders.Item item:items){
+            LinearLayout row=card(c);
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            row.setGravity(Gravity.CENTER_VERTICAL);
+            row.setPadding(dp(16),dp(12),dp(12),dp(12));
+            LinearLayout words=new LinearLayout(c);
+            words.setOrientation(LinearLayout.VERTICAL);
+            TextView a=text(c,item.text,16,true,Theme.key_windowBackgroundWhiteBlackText);
+            a.setMaxLines(2);
+            words.addView(a);
+            String when=DateFormat.getDateTimeInstance(DateFormat.SHORT,DateFormat.SHORT).format(new Date(item.triggerAt));
+            TextView b=text(c,when+(item.repeatMinutes>0?" • повтор":""),12,false,Theme.key_windowBackgroundWhiteGrayText);
+            words.addView(b,lp(0,3,0,0));
+            row.addView(words,new LinearLayout.LayoutParams(0,-2,1f));
+            TextView del=pill(c,"Удалить");
+            del.setTextSize(12);
+            del.setTextColor(Theme.getColor(Theme.key_text_RedBold));
+            del.setOnClickListener(v->{CustomGramReminderScheduler.cancel(item.id);CustomGramReminders.remove(item.id);rebuildActive(c);});
+            row.addView(del,LayoutHelper.createLinear(82,40, Gravity.CENTER_VERTICAL));
+            activeList.addView(row,lp(0,0,0,8));
+        }
+    }
     private void updatePreview(){ if(previewBody==null||textField==null)return; String body=textField.getText().toString().trim(); previewBody.setText(body.isEmpty()?"Текст напоминания":body); String suffix=repeatMinutes==0?"":repeatMinutes==60?" • каждый час":" • каждый день"; previewWhen.setText("Через "+minutesLabel(parseMinutes())+suffix); }
     private int parseMinutes(){try{return Math.max(1,Integer.parseInt(minutesField.getText().toString().trim()));}catch(Exception e){return 1;}}
     private String minutesLabel(int m){if(m%60==0){int h=m/60;return h+" ч";}return m+" мин";}
