@@ -14,6 +14,57 @@ jobs:
           submodules: recursive
           fetch-depth: 1
 
+      - name: Inject Telegram API credentials
+        env:
+          TELEGRAM_API_ID: ${{ secrets.TELEGRAM_API_ID }}
+          TELEGRAM_API_HASH: ${{ secrets.TELEGRAM_API_HASH }}
+        run: |
+          python3 - <<'PY'
+          import os
+          import re
+          from pathlib import Path
+
+          path = Path(
+              "TMessagesProj/src/main/java/"
+              "org/telegram/messenger/BuildVars.java"
+          )
+
+          text = path.read_text(encoding="utf-8")
+
+          api_id = os.environ["TELEGRAM_API_ID"]
+          api_hash = os.environ["TELEGRAM_API_HASH"]
+
+          if not api_id.isdigit():
+              raise SystemExit("TELEGRAM_API_ID is missing or invalid")
+
+          if not api_hash:
+              raise SystemExit("TELEGRAM_API_HASH is missing")
+
+          text, id_count = re.subn(
+              r'public static int APP_ID = \d+;',
+              f'public static int APP_ID = {api_id};',
+              text,
+              count=1
+          )
+
+          text, hash_count = re.subn(
+              r'public static String APP_HASH = "[^"]*";',
+              f'public static String APP_HASH = "{api_hash}";',
+              text,
+              count=1
+          )
+
+          if id_count != 1 or hash_count != 1:
+              raise SystemExit(
+                  f"BuildVars.java patch failed: "
+                  f"APP_ID={id_count}, APP_HASH={hash_count}"
+              )
+
+          path.write_text(text, encoding="utf-8")
+
+          print("Telegram API credentials injected successfully.")
+          PY
+
       - name: Build Telegram Docker image
         run: |
           docker build \
