@@ -26,6 +26,16 @@ def add_import(path, anchor, import_line, label):
 # -----------------------------------------------------------------------------
 settings = "TMessagesProj/src/main/java/org/telegram/ui/SettingsActivity.java"
 settings_text = Path(settings).read_text(encoding="utf-8")
+
+# A previous experimental search patch inserted this helper call without a helper
+# implementation. Pull-request checkouts may still contain it in the generated
+# SettingsActivity. Remove the obsolete hook and use the inline integration below.
+if "fillCustomGramSearch(query);" in settings_text:
+    settings_text = settings_text.replace("        fillCustomGramSearch(query);\n", "")
+    settings_text = settings_text.replace("fillCustomGramSearch(query);", "")
+    Path(settings).write_text(settings_text, encoding="utf-8")
+
+settings_text = Path(settings).read_text(encoding="utf-8")
 settings_import_anchor = "import org.telegram.messenger.ContactsController;" if "import org.telegram.messenger.ContactsController;" in settings_text else "import org.telegram.messenger.ChatThemeController;"
 add_import(settings, settings_import_anchor, "import org.telegram.messenger.CustomGramConfig;", "SettingsActivity CustomGramConfig")
 
