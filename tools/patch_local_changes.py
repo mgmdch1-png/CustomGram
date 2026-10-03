@@ -16,7 +16,7 @@ def replace_once(text, old, new, label):
 
 
 # -----------------------------------------------------------------------------
-# ProfileActivity: меню, открытие редактора, bio и статус
+# ProfileActivity: меню, открытие редактора, bio, username и статус
 # -----------------------------------------------------------------------------
 profile_path = "TMessagesProj/src/main/java/org/telegram/ui/ProfileActivity.java"
 profile = read(profile_path)
@@ -83,6 +83,31 @@ profile = profile.replace(
     "text = userInfo != null ? userInfo.about : null;",
     "text = userInfo != null ? CustomGramLocalChanges.getAbout(userId, userInfo.about) : null;"
 )
+
+# ProfileActivity собирает username напрямую из user.username/user.usernames и обходил UserObject.
+# Подменяем именно этот путь, чтобы @username реально менялся в профиле.
+if "CUSTOMGRAM_LOCAL_USERNAME_PROFILE" not in profile:
+    username_old = """                            TLRPC.TL_username usernameObj = null;
+                            if (user != null && !TextUtils.isEmpty(user.username)) {
+                                usernameObj = DialogObject.findUsername(user.username, usernames);
+                                username = user.username;
+                            }
+                            usernames = user == null ? new ArrayList<>() : new ArrayList<>(user.usernames);"""
+    username_new = """                            // CUSTOMGRAM_LOCAL_USERNAME_PROFILE
+                            TLRPC.TL_username usernameObj = null;
+                            if (user != null && CustomGramLocalChanges.hasUsernameOverride(userId)) {
+                                username = CustomGramLocalChanges.getUsername(userId, user.username);
+                                usernames = new ArrayList<>();
+                            } else {
+                                if (user != null && !TextUtils.isEmpty(user.username)) {
+                                    usernameObj = DialogObject.findUsername(user.username, usernames);
+                                    username = user.username;
+                                }
+                                usernames = user == null ? new ArrayList<>() : new ArrayList<>(user.usernames);
+                            }"""
+    if username_old not in profile:
+        raise SystemExit("Не найдено место для патча: username профиля")
+    profile = profile.replace(username_old, username_new)
 
 write(profile_path, profile)
 
