@@ -9,6 +9,10 @@ on:
     branches:
       - master
 
+concurrency:
+  group: customgram-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-24.04
@@ -47,9 +51,13 @@ jobs:
           python3 tools/patch_local_changes.py
           python3 tools/patch_customgram_ui.py
           grep -q "CUSTOMGRAM_LOCAL_CHANGES_MENU" TMessagesProj/src/main/java/org/telegram/ui/ProfileActivity.java
+          grep -q "CUSTOMGRAM_LOCAL_USERNAME_PROFILE" TMessagesProj/src/main/java/org/telegram/ui/ProfileActivity.java
           grep -q "CUSTOMGRAM_LOCAL_NAME_GLOBAL" TMessagesProj/src/main/java/org/telegram/messenger/UserObject.java
           grep -q "CUSTOMGRAM_LOCAL_STATUS_GLOBAL" TMessagesProj/src/main/java/org/telegram/messenger/LocaleController.java
           grep -q "CUSTOMGRAM_SETTINGS_HUB_ROW" TMessagesProj/src/main/java/org/telegram/ui/SettingsActivity.java
+          grep -q "CUSTOMGRAM_SETTINGS_SEARCH" TMessagesProj/src/main/java/org/telegram/ui/SettingsActivity.java
+          grep -q "CUSTOMGRAM_CLEAN_ACTIONBAR_BACK" TMessagesProj/src/main/java/org/telegram/ui/ActionBar/ActionBar.java
+          grep -q "CUSTOMGRAM_MAIN_TITLE" TMessagesProj/src/main/java/org/telegram/ui/DialogsActivity.java
           grep -q "CUSTOMGRAM_REMINDER_RECEIVERS" TMessagesProj/config/release/AndroidManifest_standalone.xml
           echo "CustomGram patches verified."
 
