@@ -2,9 +2,6 @@ name: Build CustomGram
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - master
 
 jobs:
   build:
@@ -59,18 +56,31 @@ jobs:
 
           if id_count != 1 or hash_count != 1:
               raise SystemExit(
-                  f"BuildVars.java patch failed: "
+                  f"BuildVars patch failed: "
                   f"APP_ID={id_count}, APP_HASH={hash_count}"
               )
 
           path.write_text(text, encoding="utf-8")
-          print("Telegram API credentials injected successfully.")
+
+          print("Telegram API credentials injected.")
           PY
+
+      - name: Apply CustomGram patches
+        run: |
+          python3 tools/patch_local_changes.py
+
+          grep -q "CUSTOMGRAM_LOCAL_CHANGES_MENU" \
+            TMessagesProj/src/main/java/org/telegram/ui/ProfileActivity.java
+
+          grep -q "CUSTOMGRAM_LOCAL_CHANGES_CLICK" \
+            TMessagesProj/src/main/java/org/telegram/ui/ProfileActivity.java
+
+          echo "CustomGram patches verified."
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
-      - name: Build Telegram Docker image with cache
+      - name: Build Telegram Docker image
         uses: docker/build-push-action@v7
         with:
           context: .
