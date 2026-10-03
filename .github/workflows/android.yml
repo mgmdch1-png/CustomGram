@@ -61,7 +61,6 @@ jobs:
               )
 
           path.write_text(text, encoding="utf-8")
-
           print("Telegram API credentials injected.")
           PY
 
