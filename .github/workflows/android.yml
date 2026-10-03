@@ -1,0 +1,54 @@
+name: Build CustomGram
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: Set up Java
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Install Android dependencies
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager \
+            "platform-tools" \
+            "platforms;android-36" \
+            "build-tools;36.0.0" \
+            "ndk;27.2.12479018" \
+            "cmake;3.22.1"
+
+      - name: Grant execute permission
+        run: chmod +x gradlew
+
+      - name: Build APK
+        run: |
+          ./gradlew \
+            :TMessagesProj_AppStandalone:assembleAfatStandalone \
+            --stacktrace \
+            --no-daemon
+
+      - name: Find APK
+        if: always()
+        run: find . -type f -name "*.apk" -print
+
+      - name: Upload APK
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: CustomGram-APK
+          path: |
+            **/build/outputs/apk/**/*.apk
+          if-no-files-found: error
