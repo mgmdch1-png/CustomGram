@@ -2,6 +2,9 @@ name: Build CustomGram
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - master
 
 jobs:
   build:
@@ -28,15 +31,12 @@ jobs:
               "TMessagesProj/src/main/java/"
               "org/telegram/messenger/BuildVars.java"
           )
-
           text = path.read_text(encoding="utf-8")
-
           api_id = os.environ["TELEGRAM_API_ID"]
           api_hash = os.environ["TELEGRAM_API_HASH"]
 
           if not api_id.isdigit():
               raise SystemExit("TELEGRAM_API_ID is missing or invalid")
-
           if not api_hash:
               raise SystemExit("TELEGRAM_API_HASH is missing")
 
@@ -46,7 +46,6 @@ jobs:
               text,
               count=1
           )
-
           text, hash_count = re.subn(
               r'public static String APP_HASH = "[^"]*";',
               f'public static String APP_HASH = "{api_hash}";',
@@ -55,10 +54,7 @@ jobs:
           )
 
           if id_count != 1 or hash_count != 1:
-              raise SystemExit(
-                  f"BuildVars patch failed: "
-                  f"APP_ID={id_count}, APP_HASH={hash_count}"
-              )
+              raise SystemExit(f"BuildVars patch failed: APP_ID={id_count}, APP_HASH={hash_count}")
 
           path.write_text(text, encoding="utf-8")
           print("Telegram API credentials injected.")
@@ -68,13 +64,13 @@ jobs:
         run: |
           python3 tools/patch_local_changes.py
 
-          grep -q "CUSTOMGRAM_LOCAL_CHANGES_MENU" \
-            TMessagesProj/src/main/java/org/telegram/ui/ProfileActivity.java
+          grep -q "CUSTOMGRAM_LOCAL_CHANGES_MENU" TMessagesProj/src/main/java/org/telegram/ui/ProfileActivity.java
+          grep -q "CUSTOMGRAM_LOCAL_CHANGES_CLICK" TMessagesProj/src/main/java/org/telegram/ui/ProfileActivity.java
+          grep -q "CUSTOMGRAM_LOCAL_NAME_GLOBAL" TMessagesProj/src/main/java/org/telegram/messenger/UserObject.java
+          grep -q "CUSTOMGRAM_LOCAL_STATUS_GLOBAL" TMessagesProj/src/main/java/org/telegram/messenger/LocaleController.java
+          grep -q "CUSTOMGRAM_LOCAL_CHANGES_SETTINGS_ROW" TMessagesProj/src/main/java/org/telegram/ui/SettingsActivity.java
 
-          grep -q "CUSTOMGRAM_LOCAL_CHANGES_CLICK" \
-            TMessagesProj/src/main/java/org/telegram/ui/ProfileActivity.java
-
-          echo "CustomGram patches verified."
+          echo "CustomGram Local Changes patches verified."
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
