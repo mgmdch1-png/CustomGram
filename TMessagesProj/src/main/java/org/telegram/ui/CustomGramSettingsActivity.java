@@ -41,6 +41,8 @@ public class CustomGramSettingsActivity extends BaseFragment {
         section(context, root, "Интерфейс");
         row(context, root, "Внешний вид", "Чистая шапка, звонок и заголовок главного экрана", v ->
                 presentFragment(new CustomGramCategoryActivity(CustomGramCategoryActivity.APPEARANCE)));
+        row(context, root, "Чаты", "Реальные эффекты сообщений и поведение чата", v ->
+                presentFragment(new CustomGramCategoryActivity(CustomGramCategoryActivity.CHATS)));
 
         section(context, root, "Функции");
         row(context, root, "Локальные изменения", "Локальная подмена имени, username, bio и статуса", v ->
@@ -53,7 +55,7 @@ public class CustomGramSettingsActivity extends BaseFragment {
                 presentFragment(new CustomGramBackupActivity()));
 
         TextView note = new TextView(context);
-        note.setText("В CustomGram больше не показываются пустые пункты. Новая функция появляется в этом меню только после подключения реальной логики.");
+        note.setText("В CustomGram не показываются пустые пункты. Новая функция появляется здесь только после подключения реальной логики в клиенте.");
         note.setTextSize(13);
         note.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText));
         note.setPadding(AndroidUtilities.dp(20), AndroidUtilities.dp(18), AndroidUtilities.dp(20), 0);
