@@ -29,6 +29,7 @@ public class CustomGramCategoryActivity extends BaseFragment {
     public static final int NAVIGATION = 2;
     public static final int CHATS = 3;
     public static final int SERVICES = 4;
+    private static final int DELETE_EFFECT_ID_BASE = 1000;
 
     private final int category;
 
@@ -154,8 +155,12 @@ public class CustomGramCategoryActivity extends BaseFragment {
         addDeleteEffectChoice(context, group, "Огонь — пиксельное сгорание снизу вверх", CustomGramConfig.DELETE_EFFECT_FIRE);
         addDeleteEffectChoice(context, group, "Случайно — новый эффект при каждом удалении", CustomGramConfig.DELETE_EFFECT_RANDOM);
 
-        group.check(CustomGramConfig.getDeleteEffect());
-        group.setOnCheckedChangeListener((radioGroup, checkedId) -> CustomGramConfig.setDeleteEffect(checkedId));
+        group.check(DELETE_EFFECT_ID_BASE + CustomGramConfig.getDeleteEffect());
+        group.setOnCheckedChangeListener((radioGroup, checkedId) -> {
+            if (checkedId >= DELETE_EFFECT_ID_BASE) {
+                CustomGramConfig.setDeleteEffect(checkedId - DELETE_EFFECT_ID_BASE);
+            }
+        });
         root.addView(group, LayoutHelper.createLinear(-1, -2));
 
         TextView note = new TextView(context);
@@ -168,7 +173,7 @@ public class CustomGramCategoryActivity extends BaseFragment {
 
     private void addDeleteEffectChoice(Context context, RadioGroup group, String text, int value) {
         RadioButton button = new RadioButton(context);
-        button.setId(value);
+        button.setId(DELETE_EFFECT_ID_BASE + value);
         button.setText(text);
         button.setTextSize(15);
         button.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText));
