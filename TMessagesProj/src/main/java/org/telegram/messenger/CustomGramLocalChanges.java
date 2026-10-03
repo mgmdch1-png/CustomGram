@@ -6,6 +6,11 @@ import android.content.SharedPreferences;
 import org.json.JSONObject;
 import org.telegram.tgnet.TLRPC;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+
 public final class CustomGramLocalChanges {
 
     public static final int STATUS_ORIGINAL = 0;
@@ -54,8 +59,27 @@ public final class CustomGramLocalChanges {
         return prefs().contains(userKey(userId));
     }
 
+    public static List<Long> getModifiedUserIds() {
+        ArrayList<Long> result = new ArrayList<>();
+        for (Map.Entry<String, ?> entry : prefs().getAll().entrySet()) {
+            String key = entry.getKey();
+            if (key != null && key.startsWith("user_")) {
+                try {
+                    result.add(Long.parseLong(key.substring(5)));
+                } catch (Exception ignore) {
+                }
+            }
+        }
+        Collections.sort(result);
+        return result;
+    }
+
     public static void clearUser(long userId) {
         prefs().edit().remove(userKey(userId)).apply();
+    }
+
+    public static void clearAll() {
+        prefs().edit().clear().apply();
     }
 
     public static boolean isOwnUser(int currentAccount, TLRPC.User user) {
