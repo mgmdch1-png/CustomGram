@@ -14,12 +14,24 @@ public class CustomGramReminderActionReceiver extends BroadcastReceiver {
         long id = intent.getLongExtra(CustomGramReminderReceiver.EXTRA_ID, 0L);
         NotificationManager nm = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
         nm.cancel((int) id);
+
         if (ACTION_DONE.equals(intent.getAction())) {
             CustomGramReminders.remove(id);
             CustomGramReminderScheduler.cancel(id);
-        } else if (ACTION_SNOOZE.equals(intent.getAction())) {
-            String text = intent.getStringExtra(CustomGramReminderReceiver.EXTRA_TEXT);
-            CustomGramReminders.Item item = new CustomGramReminders.Item(id, text, System.currentTimeMillis() + 10 * 60_000L, 0, true);
+            return;
+        }
+
+        if (ACTION_SNOOZE.equals(intent.getAction())) {
+            CustomGramReminders.Item existing = CustomGramReminders.get(id);
+            String text = existing != null ? existing.text : intent.getStringExtra(CustomGramReminderReceiver.EXTRA_TEXT);
+            int repeatMinutes = existing != null ? existing.repeatMinutes : 0;
+            CustomGramReminders.Item item = new CustomGramReminders.Item(
+                    id,
+                    text == null ? "Напоминание" : text,
+                    System.currentTimeMillis() + 10 * 60_000L,
+                    repeatMinutes,
+                    true
+            );
             CustomGramReminders.save(item);
             CustomGramReminderScheduler.schedule(item);
         }
