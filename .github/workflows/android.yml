@@ -1,0 +1,40 @@
+name: Build CustomGram
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: Build Telegram Docker image
+        run: |
+          docker build \
+            -t customgram-builder \
+            .
+
+      - name: Build APK
+        run: |
+          docker run --rm \
+            -v "$PWD:/home/source" \
+            customgram-builder
+
+      - name: Find APK
+        run: |
+          echo "Generated APK files:"
+          find TMessagesProj -type f -name "*.apk" -print
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: CustomGram-APK
+          path: |
+            TMessagesProj/build/outputs/apk/**/*.apk
+          if-no-files-found: error
