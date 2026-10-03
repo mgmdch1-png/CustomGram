@@ -1,80 +1,184 @@
 from pathlib import Path
 
-profile = Path(
-    "TMessagesProj/src/main/java/org/telegram/ui/ProfileActivity.java"
+
+def read(path):
+    return Path(path).read_text(encoding="utf-8")
+
+
+def write(path, text):
+    Path(path).write_text(text, encoding="utf-8")
+
+
+def replace_once(text, old, new, label):
+    if old not in text:
+        raise SystemExit(f"Не найдено место для патча: {label}")
+    return text.replace(old, new, 1)
+
+
+# -----------------------------------------------------------------------------
+# ProfileActivity: меню, открытие редактора, bio и статус
+# -----------------------------------------------------------------------------
+profile_path = "TMessagesProj/src/main/java/org/telegram/ui/ProfileActivity.java"
+profile = read(profile_path)
+
+if "import org.telegram.messenger.CustomGramLocalChanges;" not in profile:
+    profile = replace_once(
+        profile,
+        "import org.telegram.messenger.ContactsController;",
+        "import org.telegram.messenger.ContactsController;\nimport org.telegram.messenger.CustomGramLocalChanges;",
+        "ProfileActivity import"
+    )
+
+if "CUSTOMGRAM_LOCAL_CHANGES_MENU" not in profile:
+    anchor = """            } else {
+                if (user.bot && user.bot_can_edit) {"""
+    insert = """            } else {
+                // CUSTOMGRAM_LOCAL_CHANGES_MENU
+                otherItem.addSubItem(
+                        9001,
+                        R.drawable.msg_edit,
+                        "Изменить локально"
+                );
+
+                if (user.bot && user.bot_can_edit) {"""
+    profile = replace_once(profile, anchor, insert, "пункт меню профиля")
+
+if "CUSTOMGRAM_LOCAL_CHANGES_CLICK" not in profile:
+    anchor = "public void onItemClick(final int id) {"
+    insert = """public void onItemClick(final int id) {
+                // CUSTOMGRAM_LOCAL_CHANGES_CLICK
+                if (id == 9001) {
+                    TLRPC.User customGramUser = getMessagesController().getUser(userId);
+                    if (customGramUser != null && !UserObject.isUserSelf(customGramUser)) {
+                        presentFragment(new CustomGramLocalChangesActivity(customGramUser.id));
+                    }
+                    return;
+                }
+"""
+    profile = replace_once(profile, anchor, insert, "обработчик меню профиля")
+
+# Статус в профиле. Глобальные вызовы formatUserStatus патчатся ниже,
+# но этот маркер позволяет отдельно проверить интеграцию профиля.
+if "CUSTOMGRAM_LOCAL_STATUS_PROFILE" not in profile:
+    old = "newString2 = LocaleController.formatUserStatus(currentAccount, user, isOnline, shortStatus ? new boolean[1] : null);"
+    new = """// CUSTOMGRAM_LOCAL_STATUS_PROFILE
+                newString2 = LocaleController.formatUserStatus(currentAccount, user, isOnline, shortStatus ? new boolean[1] : null);"""
+    profile = replace_once(profile, old, new, "статус профиля")
+
+# Локальное bio должно появляться даже если оригинальный bio пустой.
+profile = profile.replace(
+    "userInfo != null && !TextUtils.isEmpty(userInfo.about)",
+    "userInfo != null && (!TextUtils.isEmpty(userInfo.about) || CustomGramLocalChanges.hasAboutOverride(userId))"
 )
 
-text = profile.read_text(encoding="utf-8")
+profile = profile.replace(
+    "boolean hasInfo = userInfo != null && !TextUtils.isEmpty(userInfo.about) || user != null && !TextUtils.isEmpty(username);",
+    "boolean hasInfo = userInfo != null && (!TextUtils.isEmpty(userInfo.about) || CustomGramLocalChanges.hasAboutOverride(userId)) || user != null && !TextUtils.isEmpty(username);"
+)
 
-MENU_MARKER = "CUSTOMGRAM_LOCAL_CHANGES_MENU"
-CLICK_MARKER = "CUSTOMGRAM_LOCAL_CHANGES_CLICK"
+profile = profile.replace(
+    "aboutLinkCell.setTextAndValue(userInfo.about, LocaleController.getString(R.string.UserBio), addlinks);",
+    "aboutLinkCell.setTextAndValue(CustomGramLocalChanges.getAbout(userId, userInfo.about), LocaleController.getString(R.string.UserBio), addlinks);"
+)
 
-# 1. Добавляем пункт "Изменить локально"
-if MENU_MARKER not in text:
-    anchor = (
-        "otherItem.addSubItem(add_contact, "
-        "R.drawable.msg_addcontact, "
-        "LocaleController.getString(R.string.AddContact));"
-    )
+profile = profile.replace(
+    "value = userInfo == null ? LocaleController.getString(R.string.Loading) : userInfo.about;",
+    "value = userInfo == null ? LocaleController.getString(R.string.Loading) : CustomGramLocalChanges.getAbout(userId, userInfo.about);"
+)
 
-    if anchor not in text:
-        raise SystemExit(
-            "Не найдено место для пункта меню Local Changes"
-        )
+profile = profile.replace(
+    "text = userInfo != null ? userInfo.about : null;",
+    "text = userInfo != null ? CustomGramLocalChanges.getAbout(userId, userInfo.about) : null;"
+)
 
-    insert = f"""
-                // {MENU_MARKER}
-                if (user != null && !UserObject.isUserSelf(user)) {{
-                    otherItem.addSubItem(
-                            9001,
-                            R.drawable.msg_edit,
-                            "Изменить локально"
-                    );
-                }}
+write(profile_path, profile)
 
-                {anchor}
-"""
 
-    text = text.replace(anchor, insert, 1)
+# -----------------------------------------------------------------------------
+# UserObject: локальное имя и username работают во всём клиенте
+# -----------------------------------------------------------------------------
+user_object_path = "TMessagesProj/src/main/java/org/telegram/messenger/UserObject.java"
+user_object = read(user_object_path)
 
-# 2. Добавляем обработчик нажатия
-if CLICK_MARKER not in text:
-    handler_anchor = "public void onItemClick(int id) {"
+if "CUSTOMGRAM_LOCAL_NAME_GLOBAL" not in user_object:
+    old = "String name = AndroidUtilities.removeRTL(AndroidUtilities.removeDiacritics(ContactsController.formatName(user.first_name, user.last_name)));"
+    new = """// CUSTOMGRAM_LOCAL_NAME_GLOBAL
+        String customFirstName = CustomGramLocalChanges.getFirstName(user.id, user.first_name);
+        String customLastName = CustomGramLocalChanges.getLastName(user.id, user.last_name);
+        String name = AndroidUtilities.removeRTL(AndroidUtilities.removeDiacritics(ContactsController.formatName(customFirstName, customLastName)));"""
+    user_object = replace_once(user_object, old, new, "глобальное локальное имя")
 
-    pos = text.find(handler_anchor)
+if "CUSTOMGRAM_LOCAL_USERNAME_GLOBAL" not in user_object:
+    old = """        if (!TextUtils.isEmpty(user.username)) {
+            return user.username;
+        }"""
+    new = """        // CUSTOMGRAM_LOCAL_USERNAME_GLOBAL
+        if (CustomGramLocalChanges.hasUsernameOverride(user.id)) {
+            String localUsername = CustomGramLocalChanges.getUsername(user.id, user.username);
+            return TextUtils.isEmpty(localUsername) ? null : localUsername;
+        }
+        if (!TextUtils.isEmpty(user.username)) {
+            return user.username;
+        }"""
+    user_object = replace_once(user_object, old, new, "глобальный локальный username")
 
-    if pos == -1:
-        raise SystemExit(
-            "Не найден обработчик ActionBar menu"
-        )
+write(user_object_path, user_object)
 
-    body_start = pos + len(handler_anchor)
 
-    handler = f"""
+# -----------------------------------------------------------------------------
+# LocaleController: локальный статус применяется ко всем стандартным местам,
+# которые используют Telegram formatUserStatus().
+# -----------------------------------------------------------------------------
+locale_path = "TMessagesProj/src/main/java/org/telegram/messenger/LocaleController.java"
+locale = read(locale_path)
 
-                // {CLICK_MARKER}
-                if (id == 9001) {{
-                    TLRPC.User customGramUser =
-                            getMessagesController().getUser(userId);
+if "CUSTOMGRAM_LOCAL_STATUS_GLOBAL" not in locale:
+    signature = "public static String formatUserStatus(int currentAccount, TLRPC.User user, boolean[] isOnline, boolean[] madeShorter) {"
+    replacement = """// CUSTOMGRAM_LOCAL_STATUS_GLOBAL
+    public static String formatUserStatus(int currentAccount, TLRPC.User user, boolean[] isOnline, boolean[] madeShorter) {
+        String original = formatUserStatusOriginal(currentAccount, user, isOnline, madeShorter);
+        return CustomGramLocalChanges.formatStatus(currentAccount, user, original);
+    }
 
-                    if (customGramUser != null
-                            && !UserObject.isUserSelf(customGramUser)) {{
-                        presentFragment(
-                                new CustomGramLocalChangesActivity(
-                                        customGramUser.id
-                                )
-                        );
-                    }}
-                    return;
-                }}
-"""
+    private static String formatUserStatusOriginal(int currentAccount, TLRPC.User user, boolean[] isOnline, boolean[] madeShorter) {"""
+    locale = replace_once(locale, signature, replacement, "глобальный локальный статус")
 
-    text = (
-        text[:body_start]
-        + handler
-        + text[body_start:]
-    )
+write(locale_path, locale)
 
-profile.write_text(text, encoding="utf-8")
 
-print("CustomGram Local Changes patch applied successfully.")
+# -----------------------------------------------------------------------------
+# SettingsActivity: отдельный раздел «Локальные изменения»
+# -----------------------------------------------------------------------------
+settings_path = "TMessagesProj/src/main/java/org/telegram/ui/SettingsActivity.java"
+settings = read(settings_path)
+
+if "CUSTOMGRAM_LOCAL_CHANGES_SETTINGS_ROW" not in settings:
+    anchor = "items.add(SettingCell.Factory.of(10, IconBackgroundColors.PURPLE.top, IconBackgroundColors.PURPLE.bottom, R.drawable.settings_language, getString(R.string.SettingsLanguage), LocaleController.getCurrentLanguageName()));"
+    insert = anchor + """
+
+        // CUSTOMGRAM_LOCAL_CHANGES_SETTINGS_ROW
+        items.add(SettingCell.Factory.of(
+                90,
+                IconBackgroundColors.PURPLE.top,
+                IconBackgroundColors.BLUE_ALT.bottom,
+                R.drawable.msg_edit,
+                "Локальные изменения",
+                "Локальная подмена профилей и статусов"
+        ));"""
+    settings = replace_once(settings, anchor, insert, "раздел в настройках")
+
+if "CUSTOMGRAM_LOCAL_CHANGES_SETTINGS_CLICK" not in settings:
+    anchor = """            case 11:
+                presentSettingFragment(new PremiumPreviewFragment("settings"));"""
+    insert = """            // CUSTOMGRAM_LOCAL_CHANGES_SETTINGS_CLICK
+            case 90:
+                presentSettingFragment(new CustomGramLocalChangesListActivity());
+                break;
+
+            case 11:
+                presentSettingFragment(new PremiumPreviewFragment("settings"));"""
+    settings = replace_once(settings, anchor, insert, "обработчик раздела настроек")
+
+write(settings_path, settings)
+
+print("CustomGram Local Changes: все патчи успешно применены.")
