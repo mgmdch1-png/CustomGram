@@ -170,9 +170,12 @@ for manifest in Path("TMessagesProj/config/release").glob("AndroidManifest*.xml"
     text = manifest.read_text(encoding="utf-8")
 
     if "android.permission.RECEIVE_BOOT_COMPLETED" not in text:
-        manifest_tag_end = text.find(">")
-        if manifest_tag_end >= 0:
-            text = text[:manifest_tag_end + 1] + '\n    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />' + text[manifest_tag_end + 1:]
+        # Insert only inside <manifest> (never between the XML declaration and root element).
+        manifest_start = text.find("<manifest")
+        manifest_tag_end = text.find(">", manifest_start)
+        if manifest_start < 0 or manifest_tag_end < 0:
+            raise SystemExit(f"Invalid Android manifest: {manifest}")
+        text = text[:manifest_tag_end + 1] + '\n    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />' + text[manifest_tag_end + 1:]
 
     if "CUSTOMGRAM_REMINDER_RECEIVERS" not in text:
         anchor = "</application>"
