@@ -17,6 +17,14 @@ public final class CustomGramConfig {
     public static final String KEY_CLEAN_ACTION_BAR = "clean_action_bar";
     public static final String KEY_HIDE_CHAT_CALL = "hide_chat_call";
     public static final String KEY_MAIN_TITLE = "main_title";
+    public static final String KEY_DELETE_EFFECT = "delete_effect";
+
+    public static final int DELETE_EFFECT_OFF = 0;
+    public static final int DELETE_EFFECT_TNT = 1;
+    public static final int DELETE_EFFECT_PORTAL = 2;
+    public static final int DELETE_EFFECT_ENDERMAN = 3;
+    public static final int DELETE_EFFECT_FIRE = 4;
+    public static final int DELETE_EFFECT_RANDOM = 5;
 
     private CustomGramConfig() {}
 
@@ -52,6 +60,32 @@ public final class CustomGramConfig {
         prefs().edit().putString(KEY_MAIN_TITLE, title.isEmpty() ? "CustomGram" : title).apply();
     }
 
+    public static int getDeleteEffect() {
+        int value = prefs().getInt(KEY_DELETE_EFFECT, DELETE_EFFECT_OFF);
+        return value < DELETE_EFFECT_OFF || value > DELETE_EFFECT_RANDOM ? DELETE_EFFECT_OFF : value;
+    }
+
+    public static void setDeleteEffect(int value) {
+        if (value < DELETE_EFFECT_OFF || value > DELETE_EFFECT_RANDOM) value = DELETE_EFFECT_OFF;
+        prefs().edit().putInt(KEY_DELETE_EFFECT, value).apply();
+    }
+
+    /** True when CustomGram owns the delete animation instead of Telegram's normal/Thanos animation. */
+    public static boolean hasCustomDeleteEffect() {
+        return getDeleteEffect() != DELETE_EFFECT_OFF;
+    }
+
+    public static String getDeleteEffectName() {
+        switch (getDeleteEffect()) {
+            case DELETE_EFFECT_TNT: return "TNT";
+            case DELETE_EFFECT_PORTAL: return "Портал";
+            case DELETE_EFFECT_ENDERMAN: return "Эндермен";
+            case DELETE_EFFECT_FIRE: return "Огонь";
+            case DELETE_EFFECT_RANDOM: return "Случайно";
+            default: return "Выключено";
+        }
+    }
+
     public static boolean matchesSearch(String query) {
         if (query == null) return false;
         String q = query.trim().toLowerCase();
@@ -63,6 +97,7 @@ public final class CustomGramConfig {
                 || "заголовок главного экрана".contains(q)
                 || "локальные изменения".contains(q)
                 || "умные напоминания".contains(q)
+                || "minecraft майнкрафт tnt портал эндермен удаление сообщений".contains(q)
                 || "бэкап настройки резервная копия".contains(q);
     }
 
