@@ -57,8 +57,6 @@ if "CUSTOMGRAM_LOCAL_CHANGES_CLICK" not in profile:
 """
     profile = replace_once(profile, anchor, insert, "обработчик меню профиля")
 
-# Статус в профиле. Глобальные вызовы formatUserStatus патчатся ниже,
-# но этот маркер позволяет отдельно проверить интеграцию профиля.
 if "CUSTOMGRAM_LOCAL_STATUS_PROFILE" not in profile:
     old = "newString2 = LocaleController.formatUserStatus(currentAccount, user, isOnline, shortStatus ? new boolean[1] : null);"
     new = """// CUSTOMGRAM_LOCAL_STATUS_PROFILE
@@ -69,11 +67,6 @@ if "CUSTOMGRAM_LOCAL_STATUS_PROFILE" not in profile:
 profile = profile.replace(
     "userInfo != null && !TextUtils.isEmpty(userInfo.about)",
     "userInfo != null && (!TextUtils.isEmpty(userInfo.about) || CustomGramLocalChanges.hasAboutOverride(userId))"
-)
-
-profile = profile.replace(
-    "boolean hasInfo = userInfo != null && !TextUtils.isEmpty(userInfo.about) || user != null && !TextUtils.isEmpty(username);",
-    "boolean hasInfo = userInfo != null && (!TextUtils.isEmpty(userInfo.about) || CustomGramLocalChanges.hasAboutOverride(userId)) || user != null && !TextUtils.isEmpty(username);"
 )
 
 profile = profile.replace(
@@ -95,7 +88,7 @@ write(profile_path, profile)
 
 
 # -----------------------------------------------------------------------------
-# UserObject: локальное имя и username работают во всём клиенте
+# UserObject: локальное имя и username работают по всему клиенту
 # -----------------------------------------------------------------------------
 user_object_path = "TMessagesProj/src/main/java/org/telegram/messenger/UserObject.java"
 user_object = read(user_object_path)
@@ -122,11 +115,57 @@ if "CUSTOMGRAM_LOCAL_USERNAME_GLOBAL" not in user_object:
         }"""
     user_object = replace_once(user_object, old, new, "глобальный локальный username")
 
+if "CUSTOMGRAM_LOCAL_FIRST_NAME_GLOBAL" not in user_object:
+    old = """        String name = user.first_name;
+        if (TextUtils.isEmpty(name)) {
+            name = user.last_name;
+        } else if (!allowShort && name.length() <= 2) {
+            return ContactsController.formatName(user.first_name, user.last_name);
+        }"""
+    new = """        // CUSTOMGRAM_LOCAL_FIRST_NAME_GLOBAL
+        String localFirstName = CustomGramLocalChanges.getFirstName(user.id, user.first_name);
+        String localLastName = CustomGramLocalChanges.getLastName(user.id, user.last_name);
+        String name = localFirstName;
+        if (TextUtils.isEmpty(name)) {
+            name = localLastName;
+        } else if (!allowShort && name.length() <= 2) {
+            return ContactsController.formatName(localFirstName, localLastName);
+        }"""
+    user_object = replace_once(user_object, old, new, "локальное короткое имя")
+
+if "CUSTOMGRAM_LOCAL_FORCED_FIRST_NAME_GLOBAL" not in user_object:
+    old = """        String name = user.first_name;
+        if (TextUtils.isEmpty(name)) {
+            name = user.last_name;
+        }
+        if (name == null) {"""
+    new = """        // CUSTOMGRAM_LOCAL_FORCED_FIRST_NAME_GLOBAL
+        String name = CustomGramLocalChanges.getFirstName(user.id, user.first_name);
+        if (TextUtils.isEmpty(name)) {
+            name = CustomGramLocalChanges.getLastName(user.id, user.last_name);
+        }
+        if (name == null) {"""
+    user_object = replace_once(user_object, old, new, "локальное forced first name")
+
+if "CUSTOMGRAM_LOCAL_HAS_USERNAME_GLOBAL" not in user_object:
+    old = """        if (username.equalsIgnoreCase(user.username)) {
+            return true;
+        }"""
+    new = """        // CUSTOMGRAM_LOCAL_HAS_USERNAME_GLOBAL
+        if (CustomGramLocalChanges.hasUsernameOverride(user.id)) {
+            String localUsername = CustomGramLocalChanges.getUsername(user.id, user.username);
+            return !TextUtils.isEmpty(localUsername) && username.equalsIgnoreCase(localUsername);
+        }
+        if (username.equalsIgnoreCase(user.username)) {
+            return true;
+        }"""
+    user_object = replace_once(user_object, old, new, "локальная проверка username")
+
 write(user_object_path, user_object)
 
 
 # -----------------------------------------------------------------------------
-# LocaleController: локальный статус применяется ко всем стандартным местам,
+# LocaleController: локальный статус применяется во всех стандартных местах,
 # которые используют Telegram formatUserStatus().
 # -----------------------------------------------------------------------------
 locale_path = "TMessagesProj/src/main/java/org/telegram/messenger/LocaleController.java"
