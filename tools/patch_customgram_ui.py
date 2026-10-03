@@ -164,6 +164,76 @@ replace_required(
 
 
 # -----------------------------------------------------------------------------
+# Minecraft-style message deletion: hook the real RecyclerView removal pipeline.
+# We reuse Telegram's existing 'snap/thanos' preparation path, but when CustomGram
+# owns the effect the message bitmap is rendered by our lightweight pixel engine.
+# -----------------------------------------------------------------------------
+item_animator = "TMessagesProj/src/main/java/org/telegram/ui/recyclerview/ChatListItemAnimator.java"
+add_import(item_animator, "import org.telegram.messenger.BuildVars;", "import org.telegram.messenger.CustomGramConfig;", "ChatListItemAnimator CustomGramConfig")
+add_import(item_animator, "import org.telegram.ui.Components.ThanosEffect;", "import org.telegram.ui.Components.CustomGramMinecraftDeleteEffect;", "ChatListItemAnimator Minecraft renderer")
+replace_required(
+    item_animator,
+    "final boolean supportsThanos = getThanosEffectContainer != null && supportsThanosEffectContainer != null && supportsThanosEffectContainer.run();",
+    "// CUSTOMGRAM_MINECRAFT_DELETE_SUPPORT\n        final boolean supportsThanos = CustomGramConfig.hasCustomDeleteEffect() || (getThanosEffectContainer != null && supportsThanosEffectContainer != null && supportsThanosEffectContainer.run());",
+    "enable CustomGram deletion pipeline"
+)
+replace_required(
+    item_animator,
+    "if (supportsThanos) {\n            LongSparseArray<ArrayList<RecyclerView.ViewHolder>> groupsToRemoveWithThanos = null;",
+    "if (supportsThanos && !CustomGramConfig.hasCustomDeleteEffect()) {\n            LongSparseArray<ArrayList<RecyclerView.ViewHolder>> groupsToRemoveWithThanos = null;",
+    "keep CustomGram removals per-message"
+)
+replace_required(
+    item_animator,
+    '''        if (thanos && getThanosEffectContainer != null) {
+            ThanosEffect thanosEffect = getThanosEffectContainer.run();
+            dispatchRemoveStarting(holder);
+            thanosEffect.animate(view, () -> {
+                view.setVisibility(View.VISIBLE);
+                if (mRemoveAnimations.remove(holder)) {
+                    dispatchRemoveFinished(holder);
+                    dispatchFinishedWhenDone();
+                }
+                thanosViews.remove(view);
+            });
+            thanosViews.add(view);
+        } else {''',
+    '''        // CUSTOMGRAM_MINECRAFT_DELETE_RUNTIME
+        if (thanos && CustomGramConfig.hasCustomDeleteEffect()) {
+            dispatchRemoveStarting(holder);
+            boolean started = CustomGramMinecraftDeleteEffect.animate(
+                    recyclerListView,
+                    view,
+                    CustomGramConfig.getDeleteEffect(),
+                    () -> {
+                        view.setVisibility(View.VISIBLE);
+                        if (mRemoveAnimations.remove(holder)) {
+                            dispatchRemoveFinished(holder);
+                            dispatchFinishedWhenDone();
+                        }
+                    }
+            );
+            if (!started) {
+                view.setVisibility(View.VISIBLE);
+            }
+        } else if (thanos && getThanosEffectContainer != null) {
+            ThanosEffect thanosEffect = getThanosEffectContainer.run();
+            dispatchRemoveStarting(holder);
+            thanosEffect.animate(view, () -> {
+                view.setVisibility(View.VISIBLE);
+                if (mRemoveAnimations.remove(holder)) {
+                    dispatchRemoveFinished(holder);
+                    dispatchFinishedWhenDone();
+                }
+                thanosViews.remove(view);
+            });
+            thanosViews.add(view);
+        } else {''',
+    "route removal into Minecraft renderer"
+)
+
+
+# -----------------------------------------------------------------------------
 # Reminder receivers: every release manifest variant + restore after reboot/update.
 # -----------------------------------------------------------------------------
 for manifest in Path("TMessagesProj/config/release").glob("AndroidManifest*.xml"):
