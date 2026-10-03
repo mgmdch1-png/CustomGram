@@ -25,7 +25,9 @@ def add_import(path, anchor, import_line, label):
 # SettingsActivity: CustomGram hub + results in Telegram's normal settings search
 # -----------------------------------------------------------------------------
 settings = "TMessagesProj/src/main/java/org/telegram/ui/SettingsActivity.java"
-add_import(settings, "import org.telegram.messenger.ContactsController;" if "import org.telegram.messenger.ContactsController;" in Path(settings).read_text(encoding="utf-8") else "import org.telegram.messenger.ChatThemeController;", "import org.telegram.messenger.CustomGramConfig;", "SettingsActivity CustomGramConfig")
+settings_text = Path(settings).read_text(encoding="utf-8")
+settings_import_anchor = "import org.telegram.messenger.ContactsController;" if "import org.telegram.messenger.ContactsController;" in settings_text else "import org.telegram.messenger.ChatThemeController;"
+add_import(settings, settings_import_anchor, "import org.telegram.messenger.CustomGramConfig;", "SettingsActivity CustomGramConfig")
 
 legacy_row = '''        // CUSTOMGRAM_LOCAL_CHANGES_SETTINGS_ROW
         items.add(SettingCell.Factory.of(
@@ -83,7 +85,6 @@ replace_required(settings, search_old, search_new, "standard settings search int
 
 # -----------------------------------------------------------------------------
 # Global ActionBar cleanup: remove round/capsule touch backgrounds when enabled.
-# This changes the actual controls, not an overlay/plugin imitation.
 # -----------------------------------------------------------------------------
 actionbar = "TMessagesProj/src/main/java/org/telegram/ui/ActionBar/ActionBar.java"
 add_import(actionbar, "import org.telegram.messenger.AndroidUtilities;", "import org.telegram.messenger.CustomGramConfig;", "ActionBar CustomGramConfig")
@@ -153,19 +154,42 @@ replace_required(
 
 
 # -----------------------------------------------------------------------------
-# Reminder receivers: install into every release manifest variant, not standalone only.
+# Reminder receivers: every release manifest variant + restore after reboot/update.
 # -----------------------------------------------------------------------------
 for manifest in Path("TMessagesProj/config/release").glob("AndroidManifest*.xml"):
     text = manifest.read_text(encoding="utf-8")
-    if "CUSTOMGRAM_REMINDER_RECEIVERS" in text:
-        continue
-    anchor = "</application>"
-    if anchor not in text:
-        continue
-    text = text.replace(anchor, '''        <!-- CUSTOMGRAM_REMINDER_RECEIVERS -->
+
+    if "android.permission.RECEIVE_BOOT_COMPLETED" not in text:
+        manifest_tag_end = text.find(">")
+        if manifest_tag_end >= 0:
+            text = text[:manifest_tag_end + 1] + '\n    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />' + text[manifest_tag_end + 1:]
+
+    if "CUSTOMGRAM_REMINDER_RECEIVERS" not in text:
+        anchor = "</application>"
+        if anchor in text:
+            text = text.replace(anchor, '''        <!-- CUSTOMGRAM_REMINDER_RECEIVERS -->
         <receiver android:name="org.telegram.messenger.CustomGramReminderReceiver" android:exported="false" />
         <receiver android:name="org.telegram.messenger.CustomGramReminderActionReceiver" android:exported="false" />
+        <receiver android:name="org.telegram.messenger.CustomGramBootReceiver" android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
     </application>''', 1)
+    elif "CustomGramBootReceiver" not in text:
+        anchor = "</application>"
+        if anchor in text:
+            text = text.replace(anchor, '''        <receiver android:name="org.telegram.messenger.CustomGramBootReceiver" android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+    </application>''', 1)
+
     manifest.write_text(text, encoding="utf-8")
 
 print("CustomGram functional UI/runtime integration patches applied.")
